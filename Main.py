@@ -1,6 +1,5 @@
 import configparser
 import fire
-import glob
 import json
 import os
 import re
@@ -8,18 +7,8 @@ import requests
 import subprocess
 import threading
 import csv
-import docker
-import sys
-import psutil
-import datetime
-from time import sleep
-from requests.exceptions import ConnectionError
-
 
 class Kanchi(object):
-    def help(self):
-        print "camerafix | note | notebackup | processinport | killport | apitest(filename) | "
-        print "apiLoadTest(filename,threadsCount,Loop) | parseTables | rundDocker | listDockers"
 
     def runAndPrintCommand(self, command):
         action = subprocess.Popen(command, stdout=subprocess.PIPE)
@@ -29,82 +18,13 @@ class Kanchi(object):
        action = subprocess.Popen(command, stdout=subprocess.PIPE)
        return action.communicate()[0]
 
-
-    def notebackup(self):
-        os.chdir(self.getSysConfig('aageno_app', 'aagenoBase') + '/notes/')
-        self.runAndPrintCommand(['./brahman.py'])
-
-    def camerafix(self):
-        print "sudo killall VDCAssistant";
-        self.runAndPrintCommand(['sudo', 'killall', 'VDCAssistant'])
-
-    def processes(self):
-        for proc in psutil.process_iter(attrs=['pid', 'name','cmdline']):
-          print(proc.pid)
-          print "\t"+str(proc.info['name'])
-          print "\t"+str(proc.info['cmdline'])
-
-
-    def killKafkaProcesses(self):
-        processids = []
-        for proc in psutil.process_iter(attrs=['pid', 'name','cmdline']):
-           if str(proc.info['name']) == 'java' and re.search('kafka', str(proc.info['cmdline']), re.IGNORECASE):
-               print str(proc.pid) + " " +str(proc.info['name'])
-               print "\t"+str(proc.info['cmdline'])
-               os.system("kill -9 {0}".format(proc.pid));
-
-    def killwfprocesses(self):
-        processids = []
-        for proc in psutil.process_iter(attrs=['pid', 'name','cmdline']):
-           if str(proc.info['name']) == 'java' and re.search('standalone', str(proc.info['cmdline']), re.IGNORECASE):
-               print str(proc.pid) + " " +str(proc.info['name'])
-               print "\t"+str(proc.info['cmdline'])
-               os.system("kill -9 {0}".format(proc.pid));
-
-
-
-    def killport(self, port):
-        for processid in self.inport(port):
-            print "Port : " + str(port) + " Process : " + str(processid);
-            subprocess.call(['kill','-9', processid])
-
-    def inport(self, port):
-        from subprocess import Popen, PIPE
-        p1 = Popen(['lsof', '-i', ':' + str(port)], stdout=PIPE)
-        processids = []
-        for line in iter(p1.stdout.readline, ''):
-            substrs = str.split(line);
-            if (substrs[1].isdigit()):
-                processids.append(substrs[1])
-
-        return processids
-
-
-    def note(self, helptopic):
-        helpdir = self.getSysConfig('aageno_app', 'aagenoBase') + '/scripts/help/'
-        if helptopic == 'options' or helptopic == '':
-            files = glob.glob(helpdir + "*.txt")
-            count = 0;
-            line = ""
-            for file in files:
-                print os.path.splitext(os.path.basename(file))[0]
-
-
-        else:
-            if helptopic.find(".") == -1:
-                file = helpdir + helptopic + '.txt';
-            else:
-                file = helpdir + helptopic;
-
-            subprocess.call(['vi', file])
-
     def apitest(self, data_file):
         with open(data_file) as data_file:
             data = json.load(data_file)
             tests = []
             for test in data:
                 if test["enabled"] == True:
-                    print "############# START TEST  > " + test["id"] + " #################"
+                    print "############# START SUIRO TEST  > " + test["id"] + " #################"
                     test["url"] = self.findAndReplace(test["url"], tests);
                     test["parameter"] = json.loads(self.findAndReplace(json.dumps(test["parameter"]), tests))
                     test["headers"] = json.loads(self.findAndReplace(json.dumps(test["headers"]), tests))
@@ -141,6 +61,7 @@ class Kanchi(object):
                             tests.append(test)
 
                     print "############## END TEST ################"
+                    print "Writing the test results in dir ".format(self._outputdir)
                     print "\n\n\n\n\n"
 
     def apiLoadTest(self, file_name, threadcount, loopCount):
@@ -225,44 +146,13 @@ class Kanchi(object):
            for row in list:
              spamwriter.writerow([row["name"],row["type"],row["nullable"],row["comment"]])
 
-    def runDocker(self):
-       print base
-       client = docker.from_env()
-       print client.containers.run("alpine", ["echo", "hello", "world"])
 
-    def listDockerContainers(self):
-       client = docker.from_env()
-       for container in client.containers.list():
-         print container.id
-
-    def stopAllDockerContainers(self):
-        client = docker.from_env()
-        for container in client.containers.list():
-          container.stop()
-
-    def statuses(self):
-        print "Check to see if zookeeper and kafka are running"
-        print "Check to see if Gateway is up"
-        print "Check to see if SupplierUI, AgencyUI,AdmingUI are uo"
-        print "Check to see if document and supplier gateway is up"
+   
 
 
-    def currentTimestamp(self):
-        import time;
-        #ts = datetime.datetime.now()
-        ts = int(time.time())*1000
-        print ts
-
-    def uuid(self):
-        import uuid
-        print  str(uuid.uuid4())
-
-    def openJson(self,file):
-        os.system("python -m json.tool {}".format(file))
-
-
+    def __init__(self,env='local',outputdir='.'):
+        self._env = env
+        self._outputdir = outputdir
 
 if __name__ == '__main__':
     fire.Fire(Kanchi)
-
-
